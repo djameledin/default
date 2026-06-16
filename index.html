@@ -21,8 +21,8 @@ const bundleSize = 2 * 1024 * 1024;
 let uploadedBytes = 0;
 let startTime = performance.now();
 
-let parallel = 3;
-let maxParallel = 25;
+let parallel = 2;
+let maxParallel = 5;
 let minParallel = 1;
 
 const baseChunk = new Uint8Array(chunkSize);
