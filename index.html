@@ -13,42 +13,53 @@
         // ///
     </pre>
 <script>
-    const WORKER_URL = 'https://upload.djameledine754.workers.dev/';
+const WORKER_URL = "https://upload.djameledine754.workers.dev/";
 const targetSize = 10 * 1024 * 1024 * 1024;
-const chunkSize = 10 * 1024 * 1024; // 10MB per request
-const parallelUploads = 5; // number of concurrent uploads
+const chunkSize = 64 * 1024;
+const bundleSize = 5 * 1024 * 1024;
+const parallelBundles = 25;
+
 let uploadedBytes = 0;
 let startTime = performance.now();
 
-const chunk = new Uint8Array(chunkSize);
-crypto.getRandomValues(chunk);
+const baseChunk = new Uint8Array(chunkSize);
+crypto.getRandomValues(baseChunk);
 
-async function sendChunk() {
-  try {
+function buildBundle() {
+    const parts = [];
+    let size = 0;
+    while (size < bundleSize) {
+        parts.push(baseChunk);
+        size += chunkSize;
+    }
+    return new Blob(parts);
+}
+
+async function sendBundle() {
+    const bundle = buildBundle();
     await fetch(WORKER_URL, {
-      method: 'POST',
-      body: chunk,
-      headers: { 'Content-Type': 'application/octet-stream' }
+        method: "POST",
+        body: bundle,
+        headers: { "Content-Type": "application/octet-stream" }
     });
-  } catch (err) {
-    console.error("Upload error:", err);
-  }
+    return bundle.size;
 }
 
 async function uploadLoop() {
-  while (uploadedBytes < targetSize) {
-    const promises = [];
-    for (let i = 0; i < parallelUploads && uploadedBytes < targetSize; i++) {
-      promises.push(sendChunk());
-      uploadedBytes += chunkSize;
+    while (uploadedBytes < targetSize) {
+        const tasks = [];
+        for (let i = 0; i < parallelBundles; i++) {
+            tasks.push(sendBundle());
+        }
+        const results = await Promise.all(tasks);
+        for (const size of results) {
+            uploadedBytes += size;
+        }
+        const elapsed = (performance.now() - startTime) / 1000;
+        const speed = (uploadedBytes / (1024 * 1024)) / elapsed;
+        console.log((uploadedBytes / targetSize * 100).toFixed(2) + "% at " + speed.toFixed(2) + " MB/s");
     }
-    await Promise.all(promises);
-
-    const elapsed = (performance.now() - startTime) / 1000;
-    const speed = (uploadedBytes / (1024 * 1024)) / elapsed;
-    console.log((uploadedBytes / targetSize * 100).toFixed(2) + "% uploaded at " + speed.toFixed(2) + " MB/s");
-  }
-  console.log("Upload completed");
+    console.log("Upload completed");
 }
 
 uploadLoop();
