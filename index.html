@@ -16,11 +16,14 @@
 const WORKER_URL = "https://upload.djameledine754.workers.dev/";
 const targetSize = 10 * 1024 * 1024 * 1024;
 const chunkSize = 64 * 1024;
-const bundleSize = 5 * 1024 * 1024;
-const parallelBundles = 15;
+const bundleSize = 2 * 1024 * 1024;
 
 let uploadedBytes = 0;
 let startTime = performance.now();
+
+let parallel = 3;
+let maxParallel = 25;
+let minParallel = 1;
 
 const baseChunk = new Uint8Array(chunkSize);
 crypto.getRandomValues(baseChunk);
@@ -37,27 +40,37 @@ function buildBundle() {
 
 async function sendBundle() {
     const bundle = buildBundle();
-    await fetch(WORKER_URL, {
+    const res = await fetch(WORKER_URL, {
         method: "POST",
         body: bundle,
         headers: { "Content-Type": "application/octet-stream" }
     });
+    if (!res.ok) throw new Error("Upload failed");
     return bundle.size;
 }
 
 async function uploadLoop() {
     while (uploadedBytes < targetSize) {
         const tasks = [];
-        for (let i = 0; i < parallelBundles; i++) {
+        for (let i = 0; i < parallel; i++) {
             tasks.push(sendBundle());
         }
-        const results = await Promise.all(tasks);
-        for (const size of results) {
-            uploadedBytes += size;
+
+        try {
+            const results = await Promise.all(tasks);
+            for (const size of results) uploadedBytes += size;
+
+            const elapsed = (performance.now() - startTime) / 1000;
+            const speed = (uploadedBytes / (1024 * 1024)) / elapsed;
+            console.log((uploadedBytes / targetSize * 100).toFixed(2) + "% at " + speed.toFixed(2) + " MB/s");
+
+            if (parallel < maxParallel) parallel++;
+
+        } catch (err) {
+            console.log("Error detected, reducing load");
+            if (parallel > minParallel) parallel = Math.floor(parallel / 2);
+            await new Promise(r => setTimeout(r, 500));
         }
-        const elapsed = (performance.now() - startTime) / 1000;
-        const speed = (uploadedBytes / (1024 * 1024)) / elapsed;
-        console.log((uploadedBytes / targetSize * 100).toFixed(2) + "% at " + speed.toFixed(2) + " MB/s");
     }
     console.log("Upload completed");
 }
